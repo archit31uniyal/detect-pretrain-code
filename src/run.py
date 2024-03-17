@@ -18,17 +18,19 @@ def load_model(name1, name2):
         model1 = None
         tokenizer1 = None
     else:
-        model1 = AutoModelForCausalLM.from_pretrained(name1, return_dict=True, device_map='auto')
+        model1 = AutoModelForCausalLM.from_pretrained(name1, return_dict=True, cache_dir = "/scratch/deu9yh/llm_privacy/llm_privacy").to('cuda:0')
         model1.eval()
         tokenizer1 = AutoTokenizer.from_pretrained(name1)
+        tokenizer1.pad_token = tokenizer1.eos_token
 
     if "davinci" in name2:
         model2 = None
         tokenizer2 = None
     else:
-        model2 = AutoModelForCausalLM.from_pretrained(name2, return_dict=True, device_map='auto')
+        model2 = AutoModelForCausalLM.from_pretrained(name2, return_dict=True, cache_dir = "/scratch/deu9yh/llm_privacy/llm_privacy").to("cuda:1")
         model2.eval()
         tokenizer2 = AutoTokenizer.from_pretrained(name2)
+        tokenizer2.pad_token = tokenizer2.eos_token
     return model1, model2, tokenizer1, tokenizer2
 
 def calculatePerplexity_gpt3(prompt, modelname):
@@ -116,9 +118,13 @@ def evaluate_data(test_data, model1, model2, tokenizer1, tokenizer2, col_name, m
     print(f"all data size: {len(test_data)}")
     all_output = []
     test_data = test_data
+    # print(test_data)
     for ex in tqdm(test_data): 
-        text = ex[col_name]
-        new_ex = inference(model1, model2, tokenizer1, tokenizer2, text, ex, modelname1, modelname2)
+        # text = ex[col_name]
+        text = ex
+        logs= {}
+        logs["text"] = text
+        new_ex = inference(model1, model2, tokenizer1, tokenizer2, text, logs, modelname1, modelname2)
         all_output.append(new_ex)
     return all_output
 
@@ -128,11 +134,16 @@ if __name__ == '__main__':
     args = args.parser.parse_args()
     args.output_dir = f"{args.output_dir}/{args.target_model}_{args.ref_model}/{args.key_name}"
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-
+    print(args.data)
     # load model and data
     model1, model2, tokenizer1, tokenizer2 = load_model(args.target_model, args.ref_model)
     if "jsonl" in args.data:
         data = load_jsonl(f"{args.data}")
+    elif 'txt' in args.data:
+        data = load_dataset('text', data_files = {'train': '/scratch/deu9yh/llm_privacy/tofu/dataset/books_large_p2.txt'})    
+        data = data['train']['text']
+        data = data[:10000]
+        data = convert_huggingface_data_to_list_dic(data)
     else: # load data from huggingface
         dataset = load_dataset(args.data, split=f"WikiMIA_length{args.length}")
         data = convert_huggingface_data_to_list_dic(dataset)

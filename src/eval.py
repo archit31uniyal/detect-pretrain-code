@@ -52,7 +52,7 @@ def fig_fpr_tpr(all_output, output_dir):
     answers = []
     metric2predictions = defaultdict(list)
     for ex in all_output:
-        answers.append(ex["label"])
+        answers.append(ex["text"])
         for metric in ex["pred"].keys():
             if ("raw" in metric) and ("clf" not in metric):
                 continue
@@ -92,9 +92,19 @@ def read_jsonl(path):
     with open(path, 'r') as f:
         return [json.loads(line) for line in tqdm(f)]
 
-def convert_huggingface_data_to_list_dic(dataset):
+def convert_huggingface_data_to_list_dic(dataset, key_name=None):
     all_data = []
-    for i in range(len(dataset)):
-        ex = dataset[i]
-        all_data.append(ex)
+    if not key_name in ['question', 'answer']:
+        for i in range(len(dataset)):
+            if key_name is not None:
+                ex = dataset[key_name][i]
+            else:
+                ex = dataset[i]
+            all_data.append(ex)
+    else:
+        questions = dataset["question"]
+        answers = dataset["answer"]
+        for i in range(len(questions)):
+            ex = questions[0][i] + " " + answers[0][i]
+            all_data.append(ex)
     return all_data
